@@ -1,0 +1,69 @@
+# Data settings
+data:
+  raw_path: "data/raw/comments.csv"     # Path to input CSV file
+  text_column: "comment"                # Column containing text
+  label_column: "sentiment"             # Column containing labels (e.g., positive, neutral, negative)
+
+# Text cleaning settings (passed to clean_text function)
+cleaning:
+  lowercase: true
+  remove_punctuation: true
+  remove_numbers: true
+  remove_extra_spaces: true
+  remove_urls:true
+  
+
+# TF‑IDF vectorizer parameters
+vectorizer:
+  max_features: 5000                    # Maximum number of features (None = no limit)
+  ngram_range: [1, 2]                   # (min_n, max_n)
+  stop_words: "english"                 # 'english' or null
+
+# Training settings
+training:
+  test_size: 0.2                        # Fraction for test set
+  random_state: 42                      # Seed for reproducibility
+  cross_validation_folds: 5             # For cross-validation (optional)
+
+# Which model to train (or the primary model if train_all=False)
+active_model: "logistic_regression"     # Choose from: logistic_regression, random_forest, xgboost, stacking
+
+# Model hyperparameters
+models:
+  logistic_regression:
+    C: 1.0
+    solver: "lbfgs"
+    max_iter: 1000
+    class_weight: "balanced"
+
+  random_forest:
+    n_estimators: 200
+    max_depth: 10
+    min_samples_split: 5
+    class_weight: "balanced"
+    n_jobs: -1
+
+  xgboost:
+    n_estimators: 150
+    max_depth: 6
+    learning_rate: 0.1
+    eval_metric: "logloss"
+
+  stacking:
+    use_stacking: true                  # Special flag for stacking
+    base_models:                        # Names of base models (must be defined above)
+      - "logistic_regression"
+      - "random_forest"
+    meta_model: "logistic_regression"   # Name of meta-model
+    cv: 5                                # Cross-validation folds for stacking
+
+# MLflow settings
+mlflow:
+  tracking_uri: "http://localhost:8000" # URI of MLflow tracking server
+  experiment_name: "Sentiment_Experiment"
+  register_model: true                  # Whether to register model after training
+  registered_model_name: "Sentiment_Model"
+
+# Artifacts saving
+artifacts:
+  preprocessing_dir: "artifacts/preprocessing"   # Where to save vectorizer + label encoder

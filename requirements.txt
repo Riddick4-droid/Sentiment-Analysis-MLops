@@ -1,0 +1,21 @@
+# Core data science
+pandas
+numpy
+scikit-learn
+
+# MLflow
+mlflow
+
+# XGBoost
+xgboost
+
+# Utilities
+pyyaml
+joblib
+
+# Optional: for better console logging
+colorlog
+kagglehub
+dvc
+
+-e .
