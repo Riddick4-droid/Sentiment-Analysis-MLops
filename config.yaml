@@ -10,7 +10,10 @@ cleaning:
   remove_punctuation: true
   remove_numbers: true
   remove_extra_spaces: true
-  remove_urls:true
+  remove_urls: true
+  remove_emojis: true
+  remove_html_tags: true
+  remove_extra_whitespace: true
   
 
 # TF‑IDF vectorizer parameters

@@ -1,74 +1,153 @@
-#in this file, we will use kagglehub api to download data
-#and save it to data/raw directory
+# in this file, we will use kagglehub api to download data
+# and save it to data/raw directory
 
 import os
+import shutil
 from pathlib import Path
-from kagglehub import KaggleHub
-from src.exceptions.custom_exceptions import DataDownloadError, DataIngestionError
+
+import kagglehub
+
+from src.exceptions.custom_exceptions import (
+    DataDownloadError,
+)
+
 from src.utils.logger import setup_logger
 from src.utils.tracer import trace
 
-#setting up the logger for this module
+
+# setting up logger
 logger = setup_logger("download_data")
+
 
 @trace(log_args=True, log_return=False)
 def download_data(
-    dataset:str,
-    file_name:str,
-    save_path:Path,
-    force_download:bool=False,
+    dataset: str,
+    save_path: Path,
+    force_download: bool = False,
 ):
     """
-    Download a file from a Kaggle dataset using KaggleHub.
+    Download dataset from KaggleHub,
+    automatically detect CSV file,
+    and save it into data/raw.
 
     Args:
-        dataset: Kaggle dataset identifier (e.g., 'username/dataset-name').
-        file_name: Name of the file to download from the dataset.
-        save_path: Directory where the downloaded file will be saved.
-        force_download: If True, re-download even if file exists.
+        dataset: Kaggle dataset identifier
+        save_path: destination directory
+        force_download: force re-download
 
     Returns:
-        Path to the downloaded file.
-
-    Raises:
-        DataDownloadError: If download fails or file not found in dataset.
+        Path to saved CSV file
     """
+
     try:
-        logger.info(f"Starting download of {file_name} from Kaggle dataset {dataset}")
 
-        # Ensure save directory exists
-        save_path.mkdir(parents=True, exist_ok=True)
-        destination = save_path / file_name
+        logger.info(
+            f"Starting dataset download from '{dataset}'"
+        )
 
-        # Check if file already exists
-        if destination.exists() and not force_download:
-            logger.info(f"File {destination} already exists. Skipping download.")
-            return destination
+        # create destination directory
+        save_path.mkdir(
+            parents=True,
+            exist_ok=True
+        )
 
-        # Initialize KaggleHub and attempt download
-        kh = KaggleHub()
-        kh.dataset_download_file(dataset, file_name, str(destination))
+        # download dataset
+        dataset_path = kagglehub.dataset_download(
+            dataset,
+            force_download=force_download
+        )
 
-        if not destination.exists():
-            error_msg = f"Failed to download {file_name} from {dataset}"
+        logger.info(
+            f"Dataset downloaded to: {dataset_path}"
+        )
+
+        # list all files in dataset directory
+        files = os.listdir(dataset_path)
+
+        logger.info(
+            f"Files found in dataset: {files}"
+        )
+
+        # find csv file automatically
+        csv_file = None
+
+        for file in files:
+
+            if file.endswith(".csv"):
+
+                csv_file = file
+                break
+
+        # if no csv file found
+        if csv_file is None:
+
+            error_msg = (
+                f"No CSV file found in dataset '{dataset}'"
+            )
+
             logger.error(error_msg)
+
             raise DataDownloadError(error_msg)
 
-        logger.info(f"Successfully downloaded {file_name} to {destination}")
-        return destination
+        logger.info(
+            f"CSV file detected: {csv_file}"
+        )
+
+        # build full source path
+        source_file_path = os.path.join(
+            dataset_path,
+            csv_file
+        )
+
+        # build destination path
+        destination_file_path = save_path / csv_file
+
+        # copy file into data/raw
+        shutil.copy(
+            source_file_path,
+            destination_file_path
+        )
+
+        logger.info(
+            f"CSV file saved to: {destination_file_path}"
+        )
+
+        return destination_file_path
 
     except Exception as e:
+
         error_msg = f"Error downloading data: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        raise DataDownloadError(error_msg, original_exception=e)
+
+        logger.error(
+            error_msg,
+            exc_info=True
+        )
+
+        raise DataDownloadError(
+            error_msg,
+            original_exception=e
+        )
+
 
 if __name__ == "__main__":
-    # Example usage
+
     dataset = "mdismielhossenabir/sentiment-analysis"
-    file_name = "sentiment_data.csv"
+
     save_path = Path("data/raw")
+
     try:
-        downloaded_file = download_data(dataset, file_name, save_path)
-        print(f"Data downloaded to: {downloaded_file}")
+
+        downloaded_file = download_data(
+            dataset=dataset,
+            save_path=save_path,
+        )
+
+        print(
+            f"Data downloaded to: {downloaded_file}"
+        )
+
     except DataDownloadError as e:
-        print(f"Failed to download data: {str(e)}")
+
+        print(
+            f"Failed to download data: {str(e)}"
+        )
