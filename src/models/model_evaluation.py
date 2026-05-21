@@ -127,7 +127,7 @@ def evaluate_model(
                 mlflow.set_tracking_uri(mlflow_config["tracking_uri"])
             if mlflow_config.get("experiment_name"):
                 mlflow.set_experiment(mlflow_config["experiment_name"])
-            with mlflow.start_run(run_name=-f"evaluation_{model_name}"):
+            with mlflow.start_run(run_name=f"evaluation_{model_name}"):
                 mlflow.log_params({
                     "model_name":model_name,
                     "test_samples":len(y_test)

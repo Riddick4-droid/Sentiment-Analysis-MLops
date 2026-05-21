@@ -42,13 +42,13 @@ def load_config(config_path:str="config.yaml")->Dict[str, Any]:
         log_exception(logger, e, error_msg)
         raise ConfigurationError(error_msg, e)
     
-    required_keys = ["data","vectorizer","training","models","mlflow"]
+    required_keys = ["data","vectorizer_method","vectorizer_params","training","models","mlflow"]
     missing_keys = [key for key in required_keys if key not in config]
 
     if missing_keys:
         error_msg = f"missing required top-level keys in config: {missing_keys}"
         logger.error(error_msg)
-        raise ConfigurationError(error_msg,e)
+        raise ConfigurationError(error_msg)
     
     logger.info(f"configuration loaded successfully from {config_path}")
     logger.debug(f"config keys: {list(config.keys())}")

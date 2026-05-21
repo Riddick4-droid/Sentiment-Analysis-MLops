@@ -1,0 +1,23 @@
+artifact_path: file:///C:/Users/LENOVO/Desktop/ml-project/Sentiment-Analysis-MLops/mlflow-artifact-root/1/models/m-d75c644e7b34446395b2ceb5340baf52/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.11.15
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+    skops_trusted_types: null
+mlflow_version: 3.12.0
+model_id: m-d75c644e7b34446395b2ceb5340baf52
+model_size_bytes: 602562
+model_uuid: m-d75c644e7b34446395b2ceb5340baf52
+prompts: null
+run_id: 73ed3b6e9f734272b9ee5bb4891b2332
+utc_time_created: '2026-05-21 21:06:26.921961'

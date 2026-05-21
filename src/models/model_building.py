@@ -27,18 +27,20 @@ def get_n_classes(y: np.ndarray) -> int:
     return n_classes
 
 @trace
-def get_model_instance(model_name:str, model_params: Dict[str, Any], n_classes: Optional[int] = None) -> Any:
+def get_model_instance(model_name:str, 
+                       model_params: Dict[str, Any], 
+                       n_classes: Optional[int] = None) -> Any:
     """Factory function to create model instances based on name and parameters."""
     logger.debug(f"Instantiating model |{model_name}| with parameters: '{model_params}'| n_classes: '{n_classes}'")
 
     #this will handle binary classification and multiclass classification 
     if model_name == "logistic_regression":
-        if n_classes is not None and n_classes > 2:
-            #multiclass case
-            model_params = {**model_params, "multi_class":"ovr"}
-        return LogisticRegression(**model_params, random_state=42)
+        model_params.pop("multi_class",None)
+        if n_classes > 2 and model_params.get("solver") not in ["lbfgs","sag","saga"]:
+            model_params["solver"]="lbfgs"
+        return LogisticRegression(**model_params,random_state=42)  
     elif model_name == "random_forest":
-        return RandomForestClassifier(**model_params, random_state=42, n_jobs=-1)
+        return RandomForestClassifier(**model_params, random_state=42,)
     elif model_name == "xgboost":
         if n_classes == 2:
             objective = "binary:logistic"
@@ -143,6 +145,7 @@ def train_and_evaluate(
             #optionally save the model locally as a .pkl file
             if local_save_pth:
                 save_model_locally(model, model_name, local_save_pth)
+            return {"accuracy": accuracy, "f1_weighted": f1_weighted, "run_id": run.info.run_id}
     except Exception as e:
         raise ModelTrainigError(f"Error during training and evaluation of model |{model_name}|: {e}", original_exception=e)
 

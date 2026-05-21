@@ -1,4 +1,6 @@
 import re
+import html
+import unicodedata
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
@@ -6,82 +8,114 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from typing import Tuple, Optional, List, Union, Dict
 from pathlib import Path
-
+import joblib
 from src.exceptions.custom_exceptions import PreprocessingError
 from src.utils.logger import setup_logger
 from src.utils.tracer import trace
 
 logger = setup_logger("data_preprocessing")
 
+# Optional: NLTK for stopwords (fallback to a small set if not available)
+try:
+    import nltk
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', quiet=True)
+try:
+    from nltk.corpus import stopwords
+    STOPWORDS = set(stopwords.words('english'))
+except ImportError:
+    # Fallback stopwords
+    STOPWORDS = {'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
+                 'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'it', 'its', 'itself',
+                 'they', 'them', 'their', 'theirs', 'themselves', 'a', 'an', 'and', 'if', 'or', 'because',
+                 'as', 'until', 'while', 'of', 'at', 'by', 'for', 'with', 'without', 'after', 'upon',
+                 'but', 'not', 'to', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+                 'had', 'having', 'do', 'does', 'did', 'doing', 'will', 'would', 'shall', 'should', 'may',
+                 'might', 'must', 'the', 'and', 'then', 'than', 'so', 'too', 'very', 'just', 'but'}
+
+
 @trace(log_args=True, log_return=False)
 def clean_text(
-    text:str,
-    lowercase:bool=True,
-    remove_punctuation:bool=True,
-    remove_numbers:bool=True,
-    remove_stopwords:bool=True,
-    remove_urls:bool=True,
-    remove_emojis:bool=True,
-    remove_html_tags:bool=True,
-    custom_stopwords:Optional[List[str]]=None,
-    remove_extra_whitespace:bool=True
+    text: str,
+    lowercase: bool = True,
+    remove_punctuation: bool = True,
+    remove_numbers: bool = True,
+    remove_stopwords: bool = False,
+    remove_urls: bool = False,
+    remove_emojis: bool = False,
+    remove_html_tags: bool = False,
+    remove_extra_whitespace: bool = True
 ) -> str:
     """
-    Clean and preprocess text data.
+    Clean a single text string with multiple optional steps.
 
     Args:
-        text: The input text string to clean.
-        lowercase: Whether to convert text to lowercase.
-        remove_punctuation: Whether to remove punctuation characters.
-        remove_numbers: Whether to remove numeric characters.
-        remove_stopwords: Whether to remove common stopwords.
-        remove_urls: Whether to remove URLs from the text.
-        remove_emojis: Whether to remove emojis from the text.
-        remove_html_tags: Whether to remove HTML tags from the text.
-        custom_stopwords: Optional list of additional stopwords to remove.
-        remove_extra_whitespace: Whether to collapse multiple spaces into one."""
-    
+        text: Input text.
+        lowercase: Convert to lowercase.
+        remove_punctuation: Remove punctuation characters.
+        remove_numbers: Remove digits.
+        remove_stopwords: Remove common English stopwords.
+        remove_urls: Remove URLs (http, https, ftp, etc.).
+        remove_emojis: Remove emoji characters.
+        remove_html_tags: Remove HTML/XML tags.
+        remove_extra_whitespace: Collapse multiple spaces and strip.
+
+    Returns:
+        Cleaned text string.
+    """
     if pd.isna(text) or text is None:
-        logger.warning("Received empty or NaN text input for cleaning")
         return ""
-    
-    #convert to string (in case we get non-string inputs)
+
     text = str(text)
 
+    # Option: remove HTML tags (must be before unescape)
+    if remove_html_tags:
+        text = re.sub(r'<[^>]+>', '', text)
+
+    # Option: unescape HTML entities (e.g., &amp;)
+    text = html.unescape(text)
+
+    # Option: remove URLs
+    if remove_urls:
+        url_pattern = r'https?://\S+|www\.\S+|ftp://\S+'
+        text = re.sub(url_pattern, '', text)
+
+    # Option: lowercase
     if lowercase:
         text = text.lower()
-    if remove_urls:
-        url_pattern = r"http\S+|www\S+|https\S+"
-        text = re.sub(url_pattern, "", text)
-    if remove_emojis:
-        emoji_pattern = re.compile(
-            "["
-            "\U0001F600-\U0001F64F"  # emoticons
-            "\U0001F300-\U0001F5FF"  # symbols & pictographs
-            "\U0001F680-\U0001F6FF"  # transport & map symbols
-            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-            "]+",
-            flags=re.UNICODE,
-        )
-        text = emoji_pattern.sub(r"", text)
-    if remove_html_tags:
-        html_pattern = r"<.*?>"
-        text = re.sub(html_pattern, "", text)
+
+    # Option: remove punctuation (keep letters, numbers, spaces)
     if remove_punctuation:
-        punctuation_pattern = r"[^\w\s]"
-        text = re.sub(punctuation_pattern, "", text)
+        text = re.sub(r'[^\w\s]', '', text)
+
+    # Option: remove numbers
     if remove_numbers:
-        number_pattern = r"\d+"
-        text = re.sub(number_pattern, "", text)
+        text = re.sub(r'\d+', '', text)
+
+    # Option: remove emojis (remove characters from Emoji Unicode blocks)
+    if remove_emojis:
+        # Simple emoji removal: any character in emoji Unicode ranges
+        emoji_pattern = re.compile("["
+            u"\U0001F600-\U0001F64F"  # emoticons
+            u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+            u"\U0001F680-\U0001F6FF"  # transport & map symbols
+            u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            u"\U00002702-\U000027B0"
+            u"\U000024C2-\U0001F251"
+            "]+", flags=re.UNICODE)
+        text = emoji_pattern.sub(r'', text)
+
+    # Option: remove stopwords (tokenize and filter)
     if remove_stopwords:
-        from sklearn.feature_extraction import text
-        stop_words = set(text.ENGLISH_STOP_WORDS)
-        if custom_stopwords:
-            stop_words.update(custom_stopwords)
-        stopword_pattern = r"\b(" + "|".join(re.escape(word) for word in stop_words) + r")\b"
-        text = re.sub(stopword_pattern, "", text) 
+        # Simple tokenization by whitespace and punctuation
+        words = re.findall(r'\b\w+\b', text)
+        words = [w for w in words if w not in STOPWORDS]
+        text = ' '.join(words)
+
+    # Option: remove extra whitespace
     if remove_extra_whitespace:
-        text = re.sub(r"\s+", " ", text).strip()
+        text = re.sub(r'\s+', ' ', text).strip()
 
     return text
 
@@ -133,32 +167,38 @@ def encode_labels(
 
 @trace(log_args=True, log_return=False)
 def create_vectorizer(
-    method:str="tfidf",
-    max_features:Optional[int]=None,
-    ngram_range:Tuple[int, int]=(1, 1),
-    stop_words:Optional[str]="english"
-) -> TfidfVectorizer:
+    method: str = "tfidf",
+    max_features: Optional[int] = None,
+    ngram_range = (1, 1),  
+    stop_words: Optional[str] = "english"
+):
     """
     Create a text vectorizer based on the specified method.
 
     Args:
-        method: The vectorization method to use ("tfidf" or "count").
-        max_features: The maximum number of features to keep (most frequent).
-        ngram_range: The range of n-grams to consider (e.g., (1, 2) for unigrams and bigrams).
-        stop_words: Stop words to remove ("english" for built-in list, or a list of custom stop words).
-
-    Returns:
-        An instance of TfidfVectorizer or CountVectorizer based on the specified method.
+        method: "tfidf" or "count"
+        max_features: Maximum number of features
+        ngram_range: Range of n-grams (e.g., (1, 2)). Accepts list or tuple.
+        stop_words: "english" or list of words
     """
+
+    # Convert ngram_range to tuple if it's a list-usually a yaml list
+    if isinstance(ngram_range, list):
+        ngram_range = tuple(ngram_range)
+    
     if method == "tfidf":
-        vectorizer = TfidfVectorizer(max_features=max_features, 
-                                     ngram_range=ngram_range, 
-                                     stop_words=stop_words)
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            ngram_range=ngram_range,
+            stop_words=stop_words
+        )
         logger.info(f"Created TfidfVectorizer with max_features={max_features}, ngram_range={ngram_range}, stop_words={stop_words}")
     elif method == "count":
-        vectorizer = CountVectorizer(max_features=max_features, 
-                                     ngram_range=ngram_range, 
-                                     stop_words=stop_words)
+        vectorizer = CountVectorizer(
+            max_features=max_features,
+            ngram_range=ngram_range,
+            stop_words=stop_words
+        )
         logger.info(f"Created CountVectorizer with max_features={max_features}, ngram_range={ngram_range}, stop_words={stop_words}")
     else:
         error_msg = f"Unsupported vectorization method: {method}. Use 'tfidf' or 'count'."
@@ -180,9 +220,9 @@ def fit_vectorizer(
         texts: A pandas Series containing the text data to vectorize."""
     logger.info(f"Fitting vectorizer to {len(texts)} text entries")
     try:
-        features = vectorizer.fit(texts)
-        logger.info(f"Vectorizer fitted successfully. Feature matrix shape: {features.shape}")
-        return features
+        fitted = vectorizer.fit(texts)
+        logger.info(f"Vectorizer fitted successfully.")
+        return fitted
     except Exception as e:
         error_msg = f"Failed to fit vectorizer: {str(e)}"
         logger.error(error_msg, exc_info=True)
@@ -223,7 +263,7 @@ def preprocess_pipeline(
     cleaning_kwargs:Optional[dict]=None,
     random_state:int=42,
     test_size:float=0.2
-) -> Tuple[np.ndarray, np.ndarray, LabelEncoder, Union[TfidfVectorizer, CountVectorizer]]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, LabelEncoder, Union[TfidfVectorizer, CountVectorizer]]:
     """
     Run the full preprocessing pipeline: clean text, encode labels, vectorize features, and split data.
     """
@@ -310,3 +350,33 @@ def save_preprocessing_artifacts(
         error_msg = f"Failed to save preprocessing artifacts: {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise PreprocessingError(error_msg, original_exception=e)
+    
+@trace
+def create_processed_dataframe(df, text_column, label_column, clean_kwargs=None):
+    """
+    Create a DataFrame with original text, cleaned text, original label, and encoded label.
+    Does NOT vectorize or split.
+    """
+    from sklearn.preprocessing import LabelEncoder
+    
+    if clean_kwargs is None:
+        clean_kwargs = {}
+    
+    raw_texts = df[text_column].astype(str).tolist()
+    raw_labels = df[label_column].values
+    
+    # Clean texts
+    cleaned_series = clean_texts_series(pd.Series(raw_texts), **clean_kwargs)
+    
+    # Encode labels
+    le = LabelEncoder()
+    encoded_labels = le.fit_transform(raw_labels)
+    
+    result_df = pd.DataFrame({
+        "original_text": raw_texts,
+        "cleaned_text": cleaned_series,
+        "original_label": raw_labels,
+        "encoded_label": encoded_labels
+    })
+    
+    return result_df, le

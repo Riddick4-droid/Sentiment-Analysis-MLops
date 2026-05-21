@@ -1,35 +1,38 @@
 # Data settings
 data:
-  raw_path: "data/raw/comments.csv"     # Path to input CSV file
-  text_column: "comment"                # Column containing text
-  label_column: "sentiment"             # Column containing labels (e.g., positive, neutral, negative)
+  raw_path: "data/raw/sentiment_analysis.csv"     # Path to input CSV file/ ensure over here that the raw_path has your file name
+  text_column: "text"                # Column containing text/case senstive
+  label_column: "sentiment"             # Column containing labels (e.g., positive, neutral, negative)/ also highly case sensitive
 
 # Text cleaning settings (passed to clean_text function)
 cleaning:
   lowercase: true
-  remove_punctuation: true
+  remove_punctuation: True
   remove_numbers: true
-  remove_extra_spaces: true
+  remove_stopwords: true
   remove_urls: true
   remove_emojis: true
   remove_html_tags: true
   remove_extra_whitespace: true
   
 
-# TF‑IDF vectorizer parameters
-vectorizer:
+# type of vectorizer to use
+vectorizer_method: "tfidf"
+
+#vectorizer parameters
+vectorizer_params:
   max_features: 5000                    # Maximum number of features (None = no limit)
-  ngram_range: [1, 2]                   # (min_n, max_n)
-  stop_words: "english"                 # 'english' or null
+  ngram_range: [1, 2]                  
+  stop_words: "english"                 
 
 # Training settings
 training:
-  test_size: 0.2                        # Fraction for test set
-  random_state: 42                      # Seed for reproducibility
+  test_size: 0.2                        # frac for test set
+  random_state: 42                      
   cross_validation_folds: 5             # For cross-validation (optional)
 
 # Which model to train (or the primary model if train_all=False)
-active_model: "logistic_regression"     # Choose from: logistic_regression, random_forest, xgboost, stacking
+active_model: "random_forest"     # Choose from: logistic_regression, random_forest, xgboost, stacking
 
 # Model hyperparameters
 models:
